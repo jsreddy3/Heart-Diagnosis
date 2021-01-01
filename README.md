@@ -13,3 +13,4 @@
 
 ## Acknowledgements
 1 @HarvardX for the idea and their instructions. This course was a capstone project for their Data Science Professional Certificate. The github for the class is [here](https://github.com/nrwade0/edX) and the class link is [here](https://www.edx.org/professional-certificate/harvardx-data-science)
+2 The UCI Machine Learning Repository for making their datasets available.
