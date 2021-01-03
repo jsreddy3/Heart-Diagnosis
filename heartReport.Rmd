@@ -1,0 +1,527 @@
+---
+title: "Prediction of the Presence of Heart Disease Based on Patient Information"
+author: "Jaiden Reddy"
+date: "8/30/20"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## 1.0 Introduction
+
+Heart disease is one of the most important diseases in America to understand. In the US, every 37 seconds, somebody dies of cardiovascular disease. Heart disease is the number one cause of death in the nation. However, an early diagnosis of heart disease and, therefore, early treatment, can help prevent death through medication and a shift to a healthier style. This document provides a methodology for using fourteen different predictors, with an emphasis on the study of four of them, to predict the presence of heart disease in patients.
+
+## 1.1 The Heart Disease Dataset
+
+The heart disease dataset is a dataset with four attributes: age, sex, cp, trestbps, chol, fbs, restecg, thalach, exang, oldpeak, slope, ca, thal, and the predicted attribute, num. Age is provided in years and sex is provided with a one indicating male and a zero indicating female. Cp indicates chest pain type, with one being correlated to a typical anigina, two to an atypical angina, three to non-anginal pain, and four to being asymptomatic. Trestbps is resting blood pressure upon admission. Chol is serum cholestrol. Fbs is a boolean checking if fasting blood sugar is above 120 mg/dl. Restecg is resting electrocardiographic results, with a 0 indicating normal, 1 having ST-T wave abnormality, or 2 showing left ventricular hypertrophy by Estes' criteria. Thalach is maximum heart rate achieved, exang indicates presence, 0 or 1, of exercised induced angina, and oldpeak is the ST depression induced by exercise relative to rest. The slope is of the peak exercise ST segment, with 1 indicating upsloping, 2 indicating flat, and three indicating downsloping. Ca is the number of major blood vessels colored by flouroscopy between zero and three, thal is the presence of a defect (3 - normal, 6 - fixed defect, 7 - reversible defect). The predicted attribute is num, where a value 0 is less than 50% diameter narrowing and a value greater than 1 indicates >50%. The dataset includes four numbers, but for reasons described below, it was altered to include 0 as an indication of a lack of heart disease and anything above zero to be an indication of heart disease.
+
+The heart disease dataset is a very small dataset. With less than three hundred patients, the total incidence of diameter narrowing was high, with 46% of patients suffering from some form of heart disease. This high incidence meant that factors  not as prevalent in the general population would be more prevalent here (likely due to the pre-selection of this database for people who had come to the hospital). An attempt was made to augment this dataset with data from not just the data source in Cleveland this document describes, but also from data available from Switzerland and Hungary. However, due to a large amount of missing data in these datasets, especially in attributes found to have high correlation with heart disease, those datasets were omitted. Instead, 0 continued to mean there was no presence of heart disease, while 1-4 were all grouped into one number to show presence of heart disease. This increased the amount of data available and made higher accuracy possible.
+
+## 1.2 Prediction Creation Methodology and Evaluation Metric
+
+The key steps performed in this document focus on two methods: linear model and regularization, and caret package training. The linear model consisted of the identification of four attributes that would be most likely to influence heart disease based on data exploration and the use of said attributes to adjust the prediction of heart disease in patients. Regularization was then used to increase accuracy. The evaluation metric applied to the data was root-mean-square error (RMSE), which compared a test set made up of 10% of the data and the predictions made on this set. The measure of the success of this method was to, at a minimum, beat the RMSE of simply using the mean heart disease as a predictor. While this may seem a lenient measure, the size of the dataset made high accuracy machine learning extremely difficult.
+
+The second model used was the training of numerous caret package functions on the training set and applying these algorithms to the test set. These included linear and quadratic as well as a k-nearest-neighbor method, alongside multiple others. They were also evaluated using the RMSE method, although accuracy was also considered with this method. 
+
+RMSE was used for the first method instead of accuracy because the adjustment method created numbers between 0 and 1, while the caret package training created results that were binary. 
+
+## 2.0 Methods and Analysis
+
+The dataset was split into a training set with 90% of the data and a test set with 10% of the data. Numerous packages were included due to the breadth of different machine learning functions tried as part of the second model/test. However, all machine learning methods and functions were trained only on the dataset and were evaluated with the test set. The 90/10 split was chosen primarily due to the quantity of data. If a split with a higher quantity of data was used for the test set, some values of the test set that had to be left_joined with the adjustments created with the train set would be NA, as the train set wouldn't contain them; for example, if a thalach value of 178 existed in the test set and not the train set, then no adjustment could be made for that value. While this still did occur, although infrequently, with a 90/10 split, setting the default prediction to mu for rare cases and keeping a 90/10 split seemed a suitable solution. 
+
+The following code installs any necessary packages, loads the libraries installed, and creates the heart_1 dataset containing Cleveland heart disease information. 
+
+```{r, echo=TRUE, warning = FALSE, results = 'hide', tidy = TRUE, message = FALSE}
+if(!require(tidyverse)) install.packages("tidyverse", repos = "http://cran.us.r-project.org")
+if(!require(caret)) install.packages("caret", repos = "http://cran.us.r-project.org")
+if(!require(data.table)) install.packages("data.table", repos = "http://cran.us.r-project.org")
+if(!require(ggplot2)) install.packages("ggplot2", repos = "http://cran.us.r-project.org")
+if(!require(Rborist)) install.packages("Rborist", repos = "http://cran.us.r-project.org")
+if(!require(dplyr)) install.packages("dplyr", repos = "http://cran.us.r-project.org")
+if(!require(corrplot)) install.packages("corrplot", repos = "http://cran.us.r-project.org")
+if(!require(gridExtra)) install.packages("gridExtra", repos = "http://cran.us.r-project.org")
+if(!require(dslabs)) install.packages("dslabs", repos = "http://cran.us.r-project.org")
+if(!require(rpart)) install.packages("rpart", repos = "http://cran.us.r-project.org")
+if(!require(rlist)) install.packages("rlist", repos = "http://cran.us.r-project.org")
+
+library(tidyverse)
+library(caret)
+library(data.table)
+library(ggplot2)
+library(Rborist)
+library(dplyr)
+library(corrplot)
+library(gridExtra)
+library(dslabs)
+library(rpart)
+
+#choose cleveland data from heart disease data
+
+heart_1 <- read.csv("https://archive.ics.uci.edu/ml/machine-learning-databases/heart-disease/processed.cleveland.data",header=FALSE,sep=",",na.strings = '?')
+
+#set the names of each column to those provided in the dataset
+
+names(heart_1) <- c("age", "sex", "cp", "trestbps", "chol", "fbs", "restecg", "thalach", "exang", "oldpeak", "slope", "ca", "thal", "num")
+heart_1 <- as.tibble(heart_1)
+```
+
+A categorical version of the age column was added for easier visualization and data exploration based on color in some graphs, but not for any algorithm training purposes. From there, the dataset was split into test and training portions and the RMSE function was defined. 
+
+```{r, echo=TRUE, warning = FALSE, results = 'hide', tidy = TRUE, message = FALSE}
+#add a column to the heart data that is categorical
+heart_1 <- heart_1 %>%
+  mutate(age_cat = case_when(age >= 70 ~ '70+',
+                             age >= 60 ~ '60-69',
+                             age >= 50 ~ '50-59',
+                             age >= 40 ~ '40-49',
+                             age < 40 ~ '<40')) %>%
+  mutate(num = case_when(num == 0 ~ 0, num > 0 ~ 1))
+
+#separate data into a training set and a test set with a 90-10 split
+
+set.seed(1984, sample.kind = "Rounding")
+test_index <- createDataPartition(heart_1$num, p = 0.1, times = 1, list = FALSE)
+heart_train <- heart_1[-test_index,]
+heart_test <- heart_1[test_index,]
+
+#RMSE function to find accuracy of prediction
+
+RMSE <- function(predicted_ratings, actual_ratings){
+  sqrt(mean((actual_ratings-predicted_ratings)^2,na.rm=T))
+}
+
+RMSEList <- list()
+```
+
+## 2.1 Variable Relationship Exploration
+
+With fourteen different variables, a linear adjustment model could become overtrained and unwieldy, with increasingly complex and lengthy code. Instead, a decision was made to focus on only four variables. The methodology to select these variables consisted of a visual analysis of graphs created relating the variables, an analysis of the correlation between each variable and the presence of heart disease, and a correlation map to view which variables could be omitted, as their effects could already be included due to a different attribute. 
+
+First, an investigation was made into the relationship between age and heart disease.
+```{r, echo=TRUE, warning = FALSE, results = 'hide', tidy = TRUE, message = FALSE}
+heartageG <- heart_train %>% 
+  group_by(age) %>% 
+  summarize(avg = mean(num)) %>%
+  ggplot(aes(age, avg)) +
+  geom_point() +
+  geom_smooth(method = "lm")
+
+heart_age <- heart_train %>%
+  group_by(age) %>% 
+  summarize(avg = mean(num)) %>%
+  select(age, avg)
+cor(heart_age$age, heart_age$avg)
+grid.arrange(heartageG, heart_train %>% ggplot(aes(num, color = age_cat)) + geom_bar())
+```
+While this graph does show a strong relationship between age and average heart disease, this could be a bit misleading. Multiple points lie on 0 or 1, some of which are inverse of that predicted by the fitted line. This means that for those points, an overly strong adjustment can be expected. This adjustment is considered too strong not because the average is an extreme, but because what is showing up as an average is only one or two points due to the size of the dataset but will still strongly affect the adjustment. While this seems like an obvious inclusion, regularization will be important in limiting the effect of significant outliers. The correlation is 0.4. The barplot shown demonstrates the minimal effect of age at the highest age group, but this is likely due only to a small sample size. Age was selected due to the correlation and obvious logical relationship, but regularization is necessary to make it significantly more accurate.
+
+## 2.2 Categorical Variable Evaluation
+
+Next, sex, fasting blood sugar, and restecg were investigated.
+
+```{r, echo=TRUE, warning = FALSE, results = 'hide', tidy = TRUE, message = FALSE}
+heart_train %>% 
+  group_by(sex) %>% 
+  summarize(avg = mean(num))
+
+heart_train %>% 
+  group_by(fbs) %>% 
+  summarize(avg = mean(num))
+
+heart_rest <- heart_train %>% 
+  group_by(restecg) %>% 
+  summarize(avg = mean(num)) %>% 
+  na.omit()
+
+cor(heart_rest$restecg, heart_rest$avg)
+
+heart_train %>% 
+  group_by(exang) %>% 
+  summarize(avg = mean(num))
+```
+Fasting blood sugar and restecg did not have strong enough relationships to warrant significant investigation, as the correlation was not extremely high or the difference not large. However, the difference between sexes was clear. Sex and age were both considered for the four variables used. Exang also had a large difference and was considered.
+
+Next, slope, ca, and thal were investigated.
+
+```{r, echo=TRUE, warning = FALSE, results = 'hide', tidy = TRUE, message = FALSE}
+heart_train %>% 
+  group_by(slope) %>% 
+  summarize(avg = mean(num))
+
+heart_train %>% 
+  group_by(ca) %>% 
+  summarize(avg = mean(num))
+
+heart_train %>% 
+  group_by(thal) %>% 
+  summarize(avg = mean(num))
+```
+
+Slope, ca, and thal all had very significant effects on the average heart disease. Ca specifically had a large impact, but all were considered for the four factors.
+
+## 2.3 Graphing Variables for Visualization
+
+From there, some of the remaining variables were graphed side by side to create an easier comparison.
+
+```{r, echo=TRUE, warning = FALSE, results = 'hide', tidy = TRUE, message = FALSE}
+heartthalG <- heart_train %>% 
+  group_by(thalach) %>% 
+  summarize(avg = mean(num)) %>% 
+  ggplot(aes(thalach, avg)) + 
+  geom_point() + 
+  geom_smooth(method = "lm", se = FALSE)
+
+heartoldG <- heart_train %>% 
+  group_by(oldpeak) %>% 
+  summarize(avg = mean(num)) %>% 
+  ggplot(aes(oldpeak, avg)) + 
+  geom_point() + 
+  geom_smooth(method = "lm", se = FALSE)
+
+heartcG <- heart_train %>% 
+  group_by(cp) %>% 
+  summarize(avg = mean(num)) %>%
+  ggplot(aes(cp, avg)) + 
+  geom_point() + 
+  geom_smooth()
+
+hearttrestG <- heart_train %>% 
+  group_by(trestbps) %>% 
+  summarize(avg = mean(num)) %>%
+  ggplot(aes(trestbps, avg)) +
+  geom_point() + 
+  geom_smooth(method = "lm")
+
+grid.arrange(heartoldG, heartthalG, heartcG, hearttrestG, heartageG)
+```
+From this graph, thalach and cp seem to have strong correlations and were chosen. Because of the large variability in trestbps, it was  not chosen. From there, a correlation plot was created to eliminate variables that may have influences incorporated by the inclusion of other variables. 
+
+```{r, echo=TRUE, warning = FALSE, results = 'hide', tidy = TRUE, message = FALSE}
+heart_train_2 <- na.omit(heart_train)
+heart_corr <- cor(heart_train_2 %>% select(-age_cat))
+corrplot(heart_corr)
+```
+Now that thalach and cp were chosen, variables with somewhat strong correlations with those two variables were eliminated. From this, exang was taken off because of its correlation, although mild, with cp. From there, oldpeak, slope, and ca all seemed to have correlation. Oldpeak was picked as the one that correlated the most strongly with num compared to the other two variables. Then, age was picked, as it correlated with ca and because it might have a mitigating factor from the extreme pushes that might happen to single data points during adjustment. Because the categorical variables might have too extreme of an effect during adjustment, age was used since it was a continuous variable and seemed to have an effect on the graph, if not on the correlation plot.
+
+After full data exploration, four attributes for the linear model were chosen: thalach, age, oldpeak, and cp. 
+
+## 2.4 Regularization
+
+Another approach that was applied to improve results was regularization. Because the dataset was relatively small and categorical variables were picked for adjustment that would have exaggerated effect on points with little frequency, regularization was necessary to improve accuracy and reduce over-adjustment.
+
+## 2.5 Train Function with Various Methods
+
+An attempt to focus more on accuracy rather than only RMSE was also made for the prediction of heart disease. Because of the numerous effects from different variables, multiple methods were tried to find one that could maximize accuracy or minimize RMSE. There was no limitation to which attributes were included for this method. 
+
+## 2.6 Rborist Random Forest
+
+The Rborist random forest function was also used to train the data. Because there were numerous attributes that could affect heart disease incidence, random forest was chosen to attempt to reduce inaccuracy and overfitting. 
+
+## 3.0 Results
+
+Once the four variables' importance had been confirmed, the prediction method was produced. The approach used the mean of all heart disease prevalence data as a baseline and then adjusted said average based on the variation in average due to four different variables. This adjustment was created using the test set. The following code shows the creation of the mu and the development of datasets with the recommended shifters for each variable, culminating in the adjustment for all four variables. 
+
+```{r, echo=TRUE, warning = FALSE, results = 'hide', tidy = TRUE, message = FALSE}
+
+mu <- mean(heart_train$num)
+
+#adjust mean based on thalach effect
+
+heart_thalach <- heart_train %>% 
+  group_by(thalach) %>% 
+  summarize(b_t = mean(num-mu))
+
+#adjust mean based on thalach and age
+
+heart_age <- heart_train %>%
+  left_join(heart_thalach, by = 'thalach') %>%
+  group_by(age) %>%
+  summarize(b_a = mean(num - mu - b_t))
+
+#adjust based on thalach, age, oldpeak
+
+heart_oldpeak <- heart_train %>%
+  left_join(heart_thalach, by = 'thalach') %>%
+  left_join(heart_age, by = 'age') %>%
+  group_by(oldpeak) %>%
+  summarize(b_o = mean(num - mu - b_t - b_a))
+
+#adjust based on thalach, age, oldpeak, cp
+
+heart_cp <- heart_train %>%
+  left_join(heart_thalach, by = 'thalach') %>%
+  left_join(heart_age, by = 'age') %>%
+  left_join(heart_oldpeak, by = 'oldpeak') %>%
+  group_by(cp) %>%
+  summarize(b_c = mean(num - mu - b_t - b_a - b_o))
+```
+
+## 3.1 Linear Model Adjustment
+
+Once all four adjustment data sets had been created, they were combined with the test set to determine their effectiveness. Any value that existed in the test set but did not exist in the training set, and therefore did not have a corresponding adjustment, was not adjusted; instead, mu was used as the default predictor.
+
+
+```{r, echo=TRUE, warning = FALSE, results = 'hide', tidy = TRUE, message = FALSE}
+#combine each of the four above adjustments with the validating dataset
+
+heart_val_t <- heart_test %>% 
+  left_join(heart_thalach, by = 'thalach') %>% 
+  mutate(predicted = mu + b_t)
+
+#any adjustment in the predictions that returns NA is replaced with the baseline predictor
+heart_val_t[is.na(heart_val_t)] <- mu
+
+heart_val_te <- heart_test %>% 
+  left_join(heart_thalach, by = 'thalach') %>% 
+  left_join(heart_age, by = 'age') %>% 
+  mutate(predicted = mu + b_t + b_a)
+
+heart_val_te[is.na(heart_val_te)] <- mu
+
+heart_val_teo <- heart_test %>% 
+  left_join(heart_thalach, by = 'thalach') %>% 
+  left_join(heart_age, by = 'age') %>% 
+  left_join(heart_oldpeak, by = 'oldpeak') %>%
+  mutate(predicted = mu + b_t + b_a + b_o)
+
+heart_val_teo[is.na(heart_val_teo)] <- mu
+
+heart_val_teoc <- heart_test %>% 
+  left_join(heart_thalach, by = 'thalach') %>% 
+  left_join(heart_age, by = 'age') %>% 
+  left_join(heart_oldpeak, by = 'oldpeak') %>%
+  left_join(heart_cp, by = 'cp') %>%
+  mutate(predicted = mu + b_t + b_a + b_o + b_c)
+
+heart_val_teoc[is.na(heart_val_teoc)] <- mu
+
+#find the RMSE of all four methods 
+RMSEList[["mu"]] <- RMSE(mu, heart_test$num)
+RMSEList[["t"]] <- RMSE(heart_val_t$predicted, heart_test$num)
+RMSEList[["te"]] <- RMSE(heart_val_te$predicted, heart_test$num)
+RMSEList[["teo"]] <- RMSE(heart_val_teo$predicted, heart_test$num)
+RMSEList[["teoc"]] <-RMSE(heart_val_teoc$predicted, heart_test$num)
+RMSE(mu, heart_test$num)
+RMSE(heart_val_teoc$predicted, heart_test$num)
+```
+
+The RMSE for this algorithm was 0.46, which only marginally surpassed the RMSE of the mu of .49. However, with regularization, many of the issues with low sample size could be reduced. While a full summary of RMSEs is placed at the end, the overall effect does not seem to be significant.
+
+## 3.2 Regularization
+
+Regularization was implemented in a very similar way to the original linear model adjustment. 
+
+```{r, echo=TRUE, warning = FALSE, results = 'hide', tidy = TRUE, message = FALSE}
+lambdas <- seq(0, 25, .5)
+
+regRMSE <- sapply(lambdas, function(L) {
+  
+  #create four prediction adjustments, similar to above but incorporating lambda
+  
+  heart_thalach <- heart_train %>%
+    group_by(thalach) %>%
+    summarize(b_t = sum(num-mu)/n() + L)
+
+  heart_age <- heart_train %>%
+    left_join(heart_thalach, by = 'thalach') %>%
+    group_by(age) %>%
+    summarize(b_a = sum(num - mu - b_t)/n() + L)
+
+  heart_oldpeak <- heart_train %>%
+    left_join(heart_thalach, by = 'thalach') %>%
+    left_join(heart_age, by = 'age') %>%
+    group_by(oldpeak) %>%
+    summarize(b_o = sum(num - mu - b_t - b_a)/n() + L)
+
+  heart_cp <- heart_train %>%
+    left_join(heart_thalach, by = 'thalach') %>%
+    left_join(heart_age, by = 'age') %>%
+    left_join(heart_oldpeak, by = 'oldpeak') %>%
+    group_by(cp) %>%
+    summarize(b_c = sum(num - mu - b_t - b_a - b_o)/n() + L)
+
+  #join the predictors with the validation sets
+  
+  heart_val_t <- heart_test %>%
+    left_join(heart_thalach, by = 'thalach') %>%
+    mutate(predicted = mu + b_t)
+  heart_val_t[is.na(heart_val_t)] <- mu
+
+  heart_val_te <- heart_test %>%
+    left_join(heart_thalach, by = 'thalach') %>%
+    left_join(heart_age, by = 'age') %>%
+    mutate(predicted = mu + b_t + b_a)
+  heart_val_te[is.na(heart_val_te)] <- mu
+
+  heart_val_teo <- heart_test %>%
+    left_join(heart_thalach, by = 'thalach') %>%
+    left_join(heart_age, by = 'age') %>%
+    left_join(heart_oldpeak, by = 'oldpeak') %>%
+    mutate(predicted = mu + b_t + b_a + b_o)
+  heart_val_teo[is.na(heart_val_teo)] <- mu
+
+  heart_val_teoc <- heart_test %>%
+    left_join(heart_thalach, by = 'thalach') %>%
+    left_join(heart_age, by = 'age') %>%
+    left_join(heart_oldpeak, by = 'oldpeak') %>%
+    left_join(heart_cp, by = 'cp') %>%
+    mutate(predicted = mu + b_t + b_a + b_o + b_c)
+  heart_val_teoc[is.na(heart_val_teoc)] <- mu
+
+  #compare predictions and validation numbers
+  
+  RMSE(heart_val_t$predicted, heart_test$num)
+  RMSE(heart_val_te$predicted, heart_test$num)
+  RMSE(heart_val_teo$predicted, heart_test$num)
+  RMSE(heart_val_teoc$predicted, heart_test$num)
+})
+
+RMSEList[["regRMSE"]] <- min(regRMSE)
+min(regRMSE)
+```
+
+Using lambda as a tuning parameter, the RMSE was re-evaluated. Surprisingly, the regularization did nothing to improve the RMSE. This means that in reality, a linear adjustment model is overall quite ineffective for making predictions with small sample sizes and large variations; a closer look into the heart_val_teoc shows individual variables, specifically the oldpeak variable, resulting in shifts on a magnitude comparable to the final RMSE (on the first data point, the b_o shift was -0.577).
+
+## 3.3 Caret Package Training Methods
+
+In order to use many training methods, the categorical variables in both train and test datasets had to be transformed into factors and any NAs had to be omitted.
+
+```{r, echo=TRUE, warning = FALSE, results = 'hide', tidy = TRUE, message = FALSE}
+heart_train_2 <- heart_train
+
+heart_train_2$sex <- as.factor(heart_train_2$sex)
+heart_train_2$cp <- as.factor(heart_train_2$cp)
+heart_train_2$fbs <- as.factor(heart_train_2$fbs)
+heart_train_2$restecg <- as.factor(heart_train_2$restecg)
+heart_train_2$exang <- as.factor(heart_train_2$exang)
+heart_train_2$slope <- as.factor(heart_train_2$slope)
+heart_train_2$ca <- as.factor(heart_train_2$ca)
+heart_train_2$thal <- as.factor(heart_train_2$thal)
+heart_train_2$num <- as.factor(heart_train_2$num)
+
+heart_test$sex <- as.factor(heart_test$sex)
+heart_test$cp <- as.factor(heart_test$cp)
+heart_test$fbs <- as.factor(heart_test$fbs)
+heart_test$restecg <- as.factor(heart_test$restecg)
+heart_test$exang <- as.factor(heart_test$exang)
+heart_test$slope <- as.factor(heart_test$slope)
+heart_test$ca <- as.factor(heart_test$ca)
+heart_test$thal <- as.factor(heart_test$thal)
+heart_test$num <- as.factor(heart_test$num)
+
+heart_train_2 <- heart_train_2 %>% select(-age_cat)
+
+heart_train_2 <- heart_train_2 %>% na.omit()
+```
+
+In an attempt to create an ensemble evaluation method, numerous training methods were attempted and individually tested for their RMSE.
+
+```{r, echo=FALSE, warning = FALSE, results = 'hide', tidy = TRUE, message = FALSE}
+#for each model, train a fit and then use it to predict the test heart disease severity,
+#using RMSE to judge accuracy
+
+#glm model
+
+fitglm <- train(num ~ ., model = "glm", data = heart_train_2)
+
+RMSEList[["glm"]] <- RMSE(as.numeric(as.character(heart_test$num)), 
+                          as.numeric(as.character(predict(fitglm, heart_test))))
+
+#lda model
+
+fitlda <- train(num ~ ., model = "lda", data = heart_train_2)
+RMSEList[["lda"]] <- RMSE(as.numeric(as.character(heart_test$num)), 
+     as.numeric(as.character(predict(fitlda, heart_test))))
+
+#naive_bayes model
+
+fitbayes <- train(num ~ ., model = "naive_bayes", data = heart_train_2)
+
+RMSEList[["naive_bayes"]] <- RMSE(as.numeric(as.character(heart_test$num)), 
+     as.numeric(as.character(predict(fitbayes, heart_test))))
+
+#svmLinear model
+
+fitsvm <- train(num ~ ., model = "svmLinear", data = heart_train_2)
+
+RMSEList[["svmLinear"]] <- RMSE(as.numeric(as.character(heart_test$num)), 
+     as.numeric(as.character(predict(fitsvm, heart_test))))
+
+#knn model
+
+fitknn <- train(num ~ ., model = "knn", data = heart_train_2)
+
+RMSEList[["knn"]] <- RMSE(as.numeric(as.character(heart_test$num)), 
+     as.numeric(as.character(predict(fitknn, heart_test))))
+
+#gamLoess model
+
+fitgam <- train(num ~ ., model = "gamLoess", data = heart_train_2)
+
+RMSEList[["gamLoess"]] <- RMSE(as.numeric(as.character(heart_test$num)), 
+     as.numeric(as.character(predict(fitgam, heart_test))))
+
+#multinom model
+
+fitmulti <- train(num ~ ., model = "multinom", data = heart_train_2)
+
+RMSEList[["multinom"]] <- RMSE(as.numeric(as.character(heart_test$num)), 
+     as.numeric(as.character(predict(fitmulti, heart_test))))
+
+#qda model
+
+fitqda <- train(num ~ ., model = "qda", data = heart_train_2)
+
+RMSEList[["qda"]] <- RMSE(as.numeric(as.character(heart_test$num)), 
+     as.numeric(as.character(predict(fitqda, heart_test))))
+
+#rf model
+
+fitrf <- train(num ~ ., model = "rf", data = heart_train_2)
+
+RMSEList[["rf"]] <- RMSE(as.numeric(as.character(heart_test$num)), 
+     as.numeric(as.character(predict(fitrf, heart_test))))
+
+#adaboost model
+
+fitada <- train(num ~ ., model = "adaboost", data = heart_train_2)
+
+RMSEList[["adaboost"]] <- RMSE(as.numeric(as.character(heart_test$num)), 
+     as.numeric(as.character(predict(fitada, heart_test))))
+```
+
+The RMSEs of these training sets were extremely promising, with RMSEs reduced to 0.25, as is shown in the later summary of this paper. Upon specific investigation through plots of the fits, it became clear that in fact, a large number of predictors were increasing RMSE.
+```{r, echo=TRUE, warning = FALSE, results = 'hide', tidy = TRUE, message = FALSE}
+fitQdaPlot <- plot(fitqda)
+fitAdaPlot <- plot(fitada)
+grid.arrange(fitQdaPlot, fitAdaPlot)
+```
+From there, other types of training functions were tested and plotted.
+```{r, echo=TRUE, warning = FALSE, results = 'hide', tidy = TRUE, message = FALSE}
+fitrpart <- rpart(num ~ ., data = heart_train_2)
+plot(fitrpart)
+text(fitrpart)
+
+RMSEList[["rpart"]] <- RMSE(as.numeric(as.character(heart_test$num)), 
+     as.numeric(as.character(predict(fitrpart, heart_test))))
+
+#create an Rborist fit and evaluate fit for RMSE of prediction
+
+train_rborist <- train(num ~ .,
+                    method = "Rborist",
+                    tuneGrid = data.frame(predFixed = 2, minNode = c(3, 50)),
+                    data = heart_train_2)
+
+RMSEList[["train_rborist"]] <- RMSE(as.numeric(as.character(predict(train_rborist, heart_test))), 
+                          as.numeric(as.character(heart_test$num)))
+```
+Finally, all RMSEs were checked.
+```{r, echo=TRUE, warning = FALSE, tidy = TRUE, message = FALSE}
+RMSEList
+```
+
+## 4.0 Conclusion
+
+This document is a summary of an attempt to use machine learning algorithms to predict the presence (1) of heart disease or the lack of (0) heart disease of a patient given fourteen different attributes summarized and explained earlier in the dataset. The two methods picked to perform this machine learning analysis were: a linear model with adjustments for chosen attributes and a regularization method as well as a group of machine learning functions from packages such as the caret packages applied to the dataset. The dataset, which had less than three hundred data points, often had only a single instance of multiple attribute values, making machine learning very difficult to perform. For this reason, an root-mean-square error (RMSE) goal of .49, or the RMSE of using a baseline predictor mu, was chosen to determine success. In order to perform the aforementioned linear model with adjustments, different attributes were chosen based on logical assumptions about a variable's known effects on heart disease, visual analysis of graphs, correlation maps, and covariance of different variables. The RMSE's minimum found in this document is .25, which was found using caret package training methods. While there were numerous limitations to the work centered around the lack of data and the quantity of NAs, the RMSE is promising. In the future, a much larger dataset with less NAs would allow for a more accurate result. While the linear adjustment model, even with regularization, was unsuccessful, future applications using this adjustment method with larger datasets may have far better success.
