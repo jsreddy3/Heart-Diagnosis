@@ -8,6 +8,9 @@
 - The dataset is also loadable through the UCI Machine Learning Repository [website](https://archive.ics.uci.edu/ml/machine-learning-databases/heart-disease/processed.cleveland.data), but I have included the steps to load the dataset in code already.
 - You will need RStudio. You can find some installation instructions [here](https://rstudio.com/products/rstudio/).
 
+## Quick Notes
+- The RMD file also included in this repository is a full summary that was submitted and graded by the HarvardX Data Science Professional Certificate team.
+
 ## Author
 @jsreddy3, or Jaiden Reddy! If you have questions, you can email me at jaidenreddy@gmail.com.
 
